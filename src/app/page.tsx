@@ -109,10 +109,20 @@ export default function Home() {
 		});
 
 		// 2. 監聽登入狀態變動 (登入或登出時會觸發)
+		// 當 Supabase 偵測到網址有 Token 時，會自動觸發這個監聽器
 		const {
 			data: { subscription },
-		} = supabase.auth.onAuthStateChange((_event, session) => {
-			setUser(session?.user ?? null);
+		} = supabase.auth.onAuthStateChange((event, session) => {
+			console.log("Auth Event:", event); // 可以在 Console 看是否有 'SIGNED_IN'
+			if (session) {
+				setUser(session.user);
+				// 成功登入後，手動把網址後面那串亂碼清掉
+				window.history.replaceState(
+					{},
+					document.title,
+					window.location.pathname,
+				);
+			}
 		});
 
 		fetchMessages();
