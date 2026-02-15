@@ -229,7 +229,28 @@ export default function Home() {
 							key={item.id}
 							className="group relative bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-300 transition-all"
 						>
-							{/* ... 留言內容與按鈕 ... */}
+							{/* 修正點：確保 text-gray-800 或 text-black，不要用 text-white */}
+							<p className="text-gray-800 pr-10">{item.content}</p>
+
+							<div className="mt-3 flex items-center gap-4">
+								<button
+									onClick={() => addLike(item.id, item.likes || 0)}
+									className="text-sm flex items-center gap-1 text-gray-500 hover:text-pink-500 transition"
+								>
+									❤️ {item.likes || 0}
+								</button>
+								<span className="text-xs text-gray-400">
+									{new Date(item.created_at).toLocaleTimeString()}
+								</span>
+							</div>
+
+							{/* 刪除按鈕 */}
+							<button
+								onClick={() => deleteMessage(item.id)}
+								className="absolute top-4 right-4 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+							>
+								🗑️
+							</button>
 						</div>
 					))}
 				</div>
