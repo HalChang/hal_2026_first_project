@@ -153,11 +153,17 @@ export default function Home() {
 				console.log("訂閱狀態:", status); // 可以在 F12 Console 檢查是否為 'SUBSCRIBED'
 			});
 
-		return () => subscription.unsubscribe();
+		return () => {
+			// 這裡原本寫錯了，應該是取消訂閱 auth 監聽
+			subscription.unsubscribe();
+			// 如果有 channel 也要取消
+			supabase.removeChannel(channel);
+		};
 	}, []);
 
 	return (
 		<main className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-8 text-black">
+			{/* 1. 頂部狀態列：顯示頭像或登入按鈕 */}
 			<div className="flex justify-between items-center mb-8 bg-white/50 p-4 rounded-lg">
 				{user ? (
 					<div className="flex items-center gap-3">
@@ -166,7 +172,9 @@ export default function Home() {
 							className="w-10 h-10 rounded-full shadow"
 							alt="avatar"
 						/>
-						<span className="font-bold">{user.user_metadata.full_name}</span>
+						<span className="font-bold">
+							{user.user_metadata.full_name || user.email}
+						</span>
 						<button onClick={logout} className="text-xs text-red-500 underline">
 							登出
 						</button>
@@ -176,45 +184,52 @@ export default function Home() {
 						onClick={login}
 						className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition"
 					>
-						使用 GitHub 登入
+						使用 GitHub 登入以留言
 					</button>
 				)}
 			</div>
+
+			{/* 2. 主卡片區塊 */}
 			<div className="max-w-md mx-auto bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 transition-all hover:shadow-indigo-500/20">
 				<h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 mb-8 text-center">
 					即時互動留言板
 				</h1>
 
-				{/* ... 輸入框區塊 ... */}
+				{/* 3. 輸入框區塊：只有登入後才顯示，或者顯示「請先登入」 */}
+				{user ? (
+					<div className="flex gap-2 mb-6">
+						<input
+							ref={inputRef}
+							type="text"
+							className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+							placeholder={isLoading ? "傳送中..." : "你想說什麼？"}
+							disabled={isLoading}
+							value={message}
+							onChange={(e) => setMessage(e.target.value)}
+							onKeyDown={handleKeyDown}
+						/>
+						<button
+							onClick={sendMessage}
+							disabled={isLoading}
+							className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg transition"
+						>
+							{isLoading ? "..." : "送出"}
+						</button>
+					</div>
+				) : (
+					<div className="bg-gray-100 p-4 rounded-lg text-center mb-6 text-gray-500 italic">
+						請登入後開始留言
+					</div>
+				)}
 
+				{/* 4. 留言列表區塊 */}
 				<div className="space-y-4">
 					{list.map((item: any) => (
 						<div
 							key={item.id}
 							className="group relative bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-300 transition-all"
 						>
-							<p className="text-gray-800 pr-10">{item.content}</p>
-
-							<div className="mt-3 flex items-center gap-4">
-								{/* 點讚按鈕 */}
-								<button
-									onClick={() => addLike(item.id, item.likes || 0)}
-									className="text-sm flex items-center gap-1 text-gray-500 hover:text-pink-500 transition"
-								>
-									❤️ {item.likes || 0}
-								</button>
-
-								<span className="text-xs text-gray-400">
-									{new Date(item.created_at).toLocaleTimeString()}
-								</span>
-							</div>
-
-							<button
-								onClick={() => deleteMessage(item.id)}
-								className="absolute top-4 right-4 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-							>
-								🗑️
-							</button>
+							{/* ... 留言內容與按鈕 ... */}
 						</div>
 					))}
 				</div>
