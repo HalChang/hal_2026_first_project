@@ -1,6 +1,6 @@
 "use client"; // 必須加上這一行，因為我們要使用 useState 和 useEffect
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase"; // @ 代表 src 目錄
 
 // 定義資料的型別，這樣 TS 就不會報錯
@@ -15,6 +15,7 @@ export default function Home() {
 	// 修正紅底：指定型別為 MessageItem 的陣列
 	const [list, setList] = useState<MessageItem[]>([]);
 	const [isLoading, setIsLoading] = useState(false); // 功能1：載入狀態
+	const inputRef = useRef<HTMLInputElement>(null); // 建立引用
 
 	// 1. 從資料庫讀取資料
 	async function fetchMessages() {
@@ -44,7 +45,7 @@ export default function Home() {
 		// 注意：這裡不必寫 fetchMessages()，Realtime 監聽會幫你做
 	}
 
-	// 2. 將新資料寫入資料庫
+	// 將新資料寫入資料庫
 	async function sendMessage() {
 		if (!message.trim()) return; // 防止空白留言
 		setIsLoading(true); // 開始載入
@@ -53,17 +54,31 @@ export default function Home() {
 			.from("halChang")
 			.insert([{ content: message }]);
 
-		if (error) {
-			alert("寫入失敗，請檢查 Supabase 的 RLS 權限設定！");
-			console.error(error); // 建議加這一行，可以在 Console 看到更細節的錯誤
-		} else {
-			setMessage(""); // 清空輸入框
-			// 移除 fetchMessages()，交給 useEffect 裡的 Realtime 處理
+		if (!error) {
+			setMessage("");
+			// 送出後自動對焦回輸入框
+			inputRef.current?.focus();
 		}
 		setIsLoading(false); // 結束載入
 	}
 
-	// 功能3：即時通訊 (Realtime)
+	// 處理 Enter 鍵送出
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+			sendMessage();
+		}
+	};
+
+	async function addLike(id: number, currentLikes: number) {
+		const { error } = await supabase
+			.from("halChang")
+			.update({ likes: currentLikes + 1 })
+			.eq("id", id);
+
+		if (error) console.error("點讚失敗", error);
+	}
+
+	// 即時通訊 (Realtime)
 	useEffect(() => {
 		fetchMessages();
 
@@ -75,55 +90,65 @@ export default function Home() {
 				{ event: "*", schema: "public", table: "halChang" },
 				(payload) => {
 					console.log("資料庫有變動!", payload);
-					fetchMessages(); // 只要資料庫有增刪改，就重新抓取
+					/* 做法 A：簡單暴力，直接重新抓取資料
+					fetchMessages();
+					*/
+
+					// 做法 B (進階)：手動更新 state，完全不用 fetch (效能最好)
+					if (payload.eventType === "INSERT") {
+						setList((prev) => [payload.new as MessageItem, ...prev]);
+					} else if (payload.eventType === "DELETE") {
+						setList((prev) =>
+							prev.filter((item) => item.id !== payload.old.id),
+						);
+					}
 				},
 			)
-			.subscribe();
+			.subscribe((status) => {
+				console.log("訂閱狀態:", status); // 可以在 F12 Console 檢查是否為 'SUBSCRIBED'
+			});
 
 		return () => {
 			supabase.removeChannel(channel); // 組件卸載時取消訂閱
 		};
 	}, []);
 
-	// ... 下方的 sendMessage 函數保持不變 ...
-
 	return (
-		<main className="min-h-screen bg-gray-100 p-8 text-black">
-			<div className="max-w-md mx-auto bg-white rounded-xl shadow-md p-6">
-				<h1 className="text-2xl font-bold text-gray-800 mb-6">
-					React 即時留言板
+		<main className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-8 text-black">
+			<div className="max-w-md mx-auto bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 transition-all hover:shadow-indigo-500/20">
+				<h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 mb-8 text-center">
+					即時互動留言板
 				</h1>
 
-				<div className="flex gap-2 mb-6">
-					<input
-						type="text"
-						className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-						placeholder={isLoading ? "傳送中..." : "你想說什麼？"}
-						disabled={isLoading}
-						value={message}
-						onChange={(e) => setMessage(e.target.value)}
-					/>
-					<button
-						onClick={sendMessage}
-						disabled={isLoading}
-						className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg transition"
-					>
-						{isLoading ? "..." : "送出"}
-					</button>
-				</div>
+				{/* ... 輸入框區塊 ... */}
 
-				<div className="space-y-3">
-					{list.map((item) => (
+				<div className="space-y-4">
+					{list.map((item: any) => (
 						<div
 							key={item.id}
-							className="flex justify-between items-center p-3 bg-blue-50 border-l-4 border-blue-500 rounded text-gray-700 group"
+							className="group relative bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-300 transition-all"
 						>
-							<span>{item.content}</span>
+							<p className="text-gray-800 pr-10">{item.content}</p>
+
+							<div className="mt-3 flex items-center gap-4">
+								{/* 點讚按鈕 */}
+								<button
+									onClick={() => addLike(item.id, item.likes || 0)}
+									className="text-sm flex items-center gap-1 text-gray-500 hover:text-pink-500 transition"
+								>
+									❤️ {item.likes || 0}
+								</button>
+
+								<span className="text-xs text-gray-400">
+									{new Date(item.created_at).toLocaleTimeString()}
+								</span>
+							</div>
+
 							<button
 								onClick={() => deleteMessage(item.id)}
-								className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
+								className="absolute top-4 right-4 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
 							>
-								刪除
+								🗑️
 							</button>
 						</div>
 					))}
