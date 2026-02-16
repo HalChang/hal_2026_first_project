@@ -13,13 +13,14 @@ interface MessageItem {
 
 export default function Home() {
 	const [message, setMessage] = useState("");
-	// 修正紅底：指定型別為 MessageItem 的陣列
 	const [list, setList] = useState<MessageItem[]>([]);
 	const [isLoading, setIsLoading] = useState(false); // 載入狀態
 	const inputRef = useRef<HTMLInputElement>(null); // 建立引用
 	const [user, setUser] = useState<User | null>(null); // 儲存登入者資訊
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
 
-	// 1. 從資料庫讀取資料
+	// 從資料庫讀取資料
 	async function fetchMessages() {
 		const { data, error } = await supabase
 			.from("halChang")
@@ -44,7 +45,6 @@ export default function Home() {
 			console.error("刪除失敗:", error.message);
 			alert("刪除失敗");
 		}
-		// 注意：這裡不必寫 fetchMessages()，Realtime 監聽會幫你做
 	}
 
 	// 將新資料寫入資料庫
@@ -89,11 +89,23 @@ export default function Home() {
 	}
 
 	// 登入功能
-	async function login() {
-		await supabase.auth.signInWithOAuth({
-			provider: "github",
-			options: { redirectTo: window.location.origin }, // 登入後跳轉回原頁面
+	// 註冊新帳號
+	async function handleSignUp() {
+		const { data, error } = await supabase.auth.signUp({
+			email,
+			password,
 		});
+		if (error) alert("註冊失敗: " + error.message);
+		else alert("請去信箱收取驗證信！");
+	}
+
+	// 帳密登入
+	async function handleSignIn() {
+		const { data, error } = await supabase.auth.signInWithPassword({
+			email,
+			password,
+		});
+		if (error) alert("登入失敗: " + error.message);
 	}
 
 	// 登出功能
@@ -103,12 +115,12 @@ export default function Home() {
 
 	// 即時通訊 (Realtime)
 	useEffect(() => {
-		// 1. 初始化時檢查目前的登入狀態
+		// 初始化時檢查目前的登入狀態
 		supabase.auth.getUser().then(({ data: { user } }) => {
 			setUser(user);
 		});
 
-		// 2. 監聽登入狀態變動 (登入或登出時會觸發)
+		// 監聽登入狀態變動 (登入或登出時會觸發)
 		// 當 Supabase 偵測到網址有 Token 時，會自動觸發這個監聽器
 		const {
 			data: { subscription },
@@ -145,8 +157,7 @@ export default function Home() {
 						setList((prev) =>
 							prev.filter((item) => item.id !== payload.old.id),
 						);
-					}
-					*/
+					} */
 				},
 			)
 			.subscribe((status) => {
@@ -167,25 +178,42 @@ export default function Home() {
 			<div className="flex justify-between items-center mb-8 bg-white/50 p-4 rounded-lg">
 				{user ? (
 					<div className="flex items-center gap-3">
-						<img
-							src={user.user_metadata.avatar_url}
-							className="w-10 h-10 rounded-full shadow"
-							alt="avatar"
-						/>
-						<span className="font-bold">
-							{user.user_metadata.full_name || user.email}
-						</span>
+						<span className="font-bold">歡迎, {user.email}</span>
 						<button onClick={logout} className="text-xs text-red-500 underline">
 							登出
 						</button>
 					</div>
 				) : (
-					<button
-						onClick={login}
-						className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition"
-					>
-						使用 GitHub 登入以留言
-					</button>
+					<div className="flex flex-col gap-2 w-full max-w-xs mx-auto mb-8 bg-white/30 p-4 rounded-xl">
+						<input
+							type="email"
+							placeholder="Email"
+							className="px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-400 outline-none"
+							value={email}
+							onChange={(e) => setEmail(e.target.value)}
+						/>
+						<input
+							type="password"
+							placeholder="Password"
+							className="px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-400 outline-none"
+							value={password}
+							onChange={(e) => setPassword(e.target.value)}
+						/>
+						<div className="flex gap-2">
+							<button
+								onClick={handleSignUp}
+								className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700"
+							>
+								註冊
+							</button>
+							<button
+								onClick={handleSignIn}
+								className="flex-1 bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700"
+							>
+								登入
+							</button>
+						</div>
+					</div>
 				)}
 			</div>
 
@@ -230,7 +258,9 @@ export default function Home() {
 							className="group relative bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-300 transition-all"
 						>
 							{/* 修正點：確保 text-gray-800 或 text-black，不要用 text-white */}
-							<p className="text-gray-800 pr-10">{item.content}</p>
+							<p className="text-slate-800 break-words font-medium">
+								{item.content}
+							</p>
 
 							<div className="mt-3 flex items-center gap-4">
 								<button
