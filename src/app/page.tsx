@@ -101,6 +101,46 @@ export default function Home() {
 		await supabase.auth.signOut();
 	}
 
+	// 在 Home 組件內新增這兩個函數
+	async function handleSignUp() {
+		if (!email || !password || !nickname) {
+			alert("請填寫完整資料！");
+			return;
+		}
+
+		// 1. 在 Supabase Auth 建立帳號（這會處理加密和 Session）
+		const { data: authData, error: authError } = await supabase.auth.signUp({
+			email,
+			password,
+		});
+
+		if (authError) {
+			alert("註冊失敗: " + authError.message);
+			return;
+		}
+
+		// 如果 Auth 建立成功，將暱稱存入我們自建的 users_profile 表
+		if (authData.user) {
+			const { error: profileError } = await supabase
+				.from("users_profile")
+				.insert([
+					{
+						id: authData.user.id, // 使用 Auth 產生的 UUID
+						nickname: nickname,
+					},
+				]);
+
+			if (profileError) {
+				console.error("Profile 建立失敗:", profileError.message);
+				alert("帳號已建立，但個人檔案建立失敗。");
+			} else {
+				alert("註冊成功！現在可以登入了。");
+				// 註冊成功後清空欄位
+				setNickname("");
+			}
+		}
+	}
+
 	// 即時通訊 (Realtime)
 	useEffect(() => {
 		// 1. 初始化時檢查目前的登入狀態
@@ -153,6 +193,10 @@ export default function Home() {
 				console.log("訂閱狀態:", status); // 可以在 F12 Console 檢查是否為 'SUBSCRIBED'
 			});
 
+		const [email, setEmail] = useState("");
+		const [password, setPassword] = useState("");
+		const [nickname, setNickname] = useState("");
+
 		return () => {
 			// 這裡原本寫錯了，應該是取消訂閱 auth 監聽
 			subscription.unsubscribe();
@@ -165,19 +209,50 @@ export default function Home() {
 		<main className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-8 text-black">
 			{/* 1. 頂部狀態列：顯示頭像或登入按鈕 */}
 			<div className="flex justify-between items-center mb-8 bg-white/50 p-4 rounded-lg">
-				{user ? (
-					<div className="flex items-center gap-3">
-						<img
-							src={user.user_metadata.avatar_url}
-							className="w-10 h-10 rounded-full shadow"
-							alt="avatar"
+				{!user ? (
+					<div className="flex flex-col gap-3 w-full max-w-sm mx-auto p-6 bg-white rounded-2xl shadow-xl">
+						<h2 className="text-xl font-bold text-center text-gray-800">
+							加入會員
+						</h2>
+
+						<input
+							type="text"
+							placeholder="暱稱 (例如: 小明)"
+							className="p-2 border rounded shadow-sm text-black"
+							value={nickname}
+							onChange={(e) => setNickname(e.target.value)}
 						/>
-						<span className="font-bold">
-							{user.user_metadata.full_name || user.email}
-						</span>
-						<button onClick={logout} className="text-xs text-red-500 underline">
-							登出
-						</button>
+
+						<input
+							type="email"
+							placeholder="Email"
+							className="p-2 border rounded shadow-sm text-black"
+							value={email}
+							onChange={(e) => setEmail(e.target.value)}
+						/>
+
+						<input
+							type="password"
+							placeholder="密碼 (至少 6 位)"
+							className="p-2 border rounded shadow-sm text-black"
+							value={password}
+							onChange={(e) => setPassword(e.target.value)}
+						/>
+
+						<div className="flex gap-2 mt-2">
+							<button
+								onClick={handleSignUp}
+								className="flex-1 bg-indigo-500 text-white py-2 rounded-lg font-bold hover:bg-indigo-600"
+							>
+								註冊
+							</button>
+							<button
+								onClick={handleSignIn}
+								className="flex-1 bg-emerald-500 text-white py-2 rounded-lg font-bold hover:bg-emerald-600"
+							>
+								登入
+							</button>
+						</div>
 					</div>
 				) : (
 					<button
